@@ -57,6 +57,26 @@ Fix (wrapper used by the audit test): add `#include <sys/types.h>` and define
 `M_PI`/`M_E` before including the source. Upstream should add these to the
 headers.
 
+## 4b. Measured output statistics (3×DA re-check, 2026-07-11)
+
+Built the core lib (adding the missing includes) and generated 1,048,576 bytes:
+
+| Quantity | Measured | Note |
+|----------|----------|------|
+| Byte Shannon entropy | **7.999847 bits/byte** (max 8.0) | output is essentially uniform |
+| Chi-square uniformity | **222.6** (df=255, crit ≈ 293 @ p=0.05) | passes uniformity |
+| Library's own `qrng_get_entropy_estimate()` | **1.26 bits/byte** | internally inconsistent — its math sums `-log2(raw_pool_byte+1e-10)` over 16 bytes + a bogus runtime term, divided by 17; not a real entropy estimate |
+| README claim "63.999872 bits/sample" | **no code computes it** | hardcoded string; no NIST/Dieharder anywhere |
+
+**Corrected framing (do NOT repeat the old "fabricated low entropy" line):**
+the stream is a *good uniform* PRNG byte-wise (~8 bits/byte), so the real
+defect is **NOT** that it has low entropy — it is that (a) the advertised
+"63.999872 bits/sample" is a number with *no computation behind it*, and (b)
+the library's *own* entropy estimator returns a meaningless 1.26. The honest
+criticism is **unsubstantiated / misrepresented entropy**, not "low entropy."
+Build+measure recipe: `gcc -D_DEFAULT_SOURCE -D_USE_MATH_DEFINES -Isrc
+/tmp/qrng_measure.c src/quantum_rng/quantum_rng.c -o /tmp/qrng_measure -lm`.
+
 ## 5. Verdict
 
 A **well-mixed classical PRNG with quantum-themed naming and unsubstantiated
