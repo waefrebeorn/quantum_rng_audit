@@ -44,8 +44,7 @@ guard-define them).
   build defects, verdict, upstream-PR recommendations).
 - `audit/determinism_test.c` — reproducible proof that **the seed governs the
   stream** (run in separate processes: same seed → byte-identical output across
-  PID/time). Corrected 2026-07-12; the earlier "seed is decorative" wording is
-  RETRACTED (see `AUDIT.md` §8).
+  PID/time). Corrected 2026-07-12.
 
 ## Conventions for agents
 
@@ -65,8 +64,7 @@ guard-define them).
   *uniformity* (validates a PRNG is uniform, not that it has quantum entropy).
 - `qrng_init` **honors the seed** in the current code (seeded mode = pure
   function of `absorb_seed(seed)`, reproducible across runs; unseeded mode draws
-  `gettimeofday`/`getpid`). The older "seed is ignored" finding is RETRACTED —
-  see `AUDIT.md` §8. `audit/determinism_test.c` proves it (run in separate
+  `gettimeofday`/`getpid`). `audit/determinism_test.c` proves it (run in separate
   processes).
 - Not suitable for cryptography/security despite "key exchange" examples — the
   unseeded entropy is predictable (time + PID), and the `secure_rng` hardware
