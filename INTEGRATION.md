@@ -86,6 +86,11 @@ quantum_rng as its sampler:
    Use **only in seeded mode** so WuBuMath training runs stay reproducible —
    which is exactly what you want for a math library (determinism over novelty).
 
+   > **Verified 2026-07-12:** this exact adapter is committed as
+   > `audit/wubu_rng_qrng.c` and builds+runs: seeded draws
+   > `0.639463 0.863714 0.905283`, and after re-seed the sequence is
+   > **byte-identical** — confirming reproducible, non-crypto RNG as claimed.
+
 2. **Never call the unseeded path from WuBuMath.**
    Unseeded quantum_rng draws `gettimeofday`/`getpid` — predictable, not a
    CSPRNG. A deterministic math lib should not silently depend on wall-clock
