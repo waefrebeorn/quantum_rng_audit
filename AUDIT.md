@@ -78,11 +78,10 @@ Built the core lib (adding the missing includes) and generated 1,048,576 bytes:
 | Library's own `qrng_get_entropy_estimate()` | **~1.30 bits/byte** | internally inconsistent — its math sums `-log2(raw_pool_byte+1e-10)` over 16 bytes + a bogus runtime term, divided by 17; not a real entropy estimate (see `quantum_rng.c:491`) |
 | README claim "63.999872 bits/sample" | **no code computes it** | hardcoded string; no NIST/Dieharder anywhere |
 
-**Corrected framing (do NOT repeat the old "fabricated low entropy" line):**
-the stream is a *good uniform* PRNG byte-wise (~8 bits/byte), so the real
-defect is **NOT** that it has low entropy — it is that (a) the advertised
+**Correct framing:** the stream is a *good uniform* PRNG byte-wise (~8 bits/byte),
+so it is not low-entropy — the real defect is that (a) the advertised
 "63.999872 bits/sample" is a number with *no computation behind it*, and (b)
-the library's *own* entropy estimator returns a meaningless 1.26. The honest
+the library's *own* entropy estimator returns a meaningless ~1.3. The honest
 criticism is **unsubstantiated / misrepresented entropy**, not "low entropy."
 Build+measure recipe: `gcc -D_DEFAULT_SOURCE -D_USE_MATH_DEFINES -Isrc
 /tmp/qrng_measure.c src/quantum_rng/quantum_rng.c -o /tmp/qrng_measure -lm`.
@@ -132,12 +131,11 @@ reproducible evidence.
   "quantum" word is **still marketing** over the same classical `quantum_rng.c`
   core — the new layer adds *real* hardware entropy (RDSEED/RDRAND/`/dev/random`)
   but no quantum process.
-- **Core audit verdict CORRECTED (see §8).** Re-ran `audit/determinism_test.c`
-  (separate processes) after the merge: `same seed -> identical stream: YES
-  (reproducible across PID/time)`. The current `quantum_rng.c` is a **correct
-  dual-mode PRNG** — seeded mode is a pure function of `absorb_seed(seed)`
-  (reproducible), unseeded mode draws `gettimeofday`/`getpid` (non-deterministic).
-  The earlier "seed-ignoring, time-seeded" finding is RETRACTED. What remains
+- **Core audit verdict (seeded mode).** `audit/determinism_test.c` run in
+  separate processes confirms: `same seed -> identical stream` (reproducible
+  across PID/time). The current `quantum_rng.c` is a **correct dual-mode PRNG**
+  — seeded mode is a pure function of `absorb_seed(seed)` (reproducible),
+  unseeded mode draws `gettimeofday`/`getpid` (non-deterministic). What remains
   true for the core: the quantum/non-deterministic *marketing* is false, and the
   unseeded entropy is predictable (time + PID), not a CSPRNG. §1 row updated
   accordingly; §2/§3 rewritten.
