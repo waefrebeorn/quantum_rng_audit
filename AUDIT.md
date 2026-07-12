@@ -83,11 +83,11 @@ so it is not low-entropy — the real defect is that (a) the advertised
 "63.999872 bits/sample" is a number with *no computation behind it*, and (b)
 the library's *own* entropy estimator returns a meaningless ~1.3. The honest
 criticism is **unsubstantiated / misrepresented entropy**, not "low entropy."
-Build+measure recipe (verified to compile+run):
+Build+measure recipe (verified to compile+run from the fork root):
 ```bash
 cd <fork root>
-gcc -D_DEFAULT_SOURCE -D_USE_MATH_DEFINES -Isrc/quantum_rng \
-  audit/qrng_measure.c src/quantum_rng/quantum_rng.c src/common/secure_memory.c \
+gcc -std=c11 -O2 -Isrc -Isrc/quantum_rng \
+  audit/qrng_measure.c src/quantum_rng/quantum_rng.c \
   -o /tmp/qrng_measure -lm
 /tmp/qrng_measure
 # -> Shannon entropy ~7.95 bits/byte, chi-square 283.9 (df=255, crit~293): uniform & high-entropy (pass)
