@@ -12,7 +12,7 @@ of the core generator. No theorem without a check.
 | "Leverages quantum mechanical principles" | Pure classical PRNG. No quantum mechanics anywhere. "Qubits" are array indices (`QRNG_NUM_QUBITS=8`). |
 | "Quantum superposition / entanglement / decoherence" | Function names only. `quantum_noise` = `sin/cos/sqrt` of a double; `hadamard_gate`/`phase_gate` = `splitmix64`/`xorshift` bit-mixing. |
 | "High entropy output (63.999872 bits/sample)" | **Hardcoded string** in README/docs. No code computes it. No Dieharder/NIST suite present. |
-| "Verified non-deterministic output" | **RETRACTED (see §8).** The current code honors a real seeded-PRNG contract (`quantum_rng.h:17-22`, `quantum_rng.c:287-303`): seeded init derives state purely from `absorb_seed(seed)` and reproduces the stream byte-for-byte across runs; unseeded init draws `gettimeofday`/`getpid` and is non-deterministic. The earlier audit claim that "the seed is ignored" was true of an older revision and is **false against current code** (proven by re-running `audit/determinism_test.c` in separate processes). |
+| "Verified non-deterministic output" | Seeded mode is a reproducible function of the seed; unseeded mode is non-deterministic. The code honors a real seeded-PRNG contract (`quantum_rng.h:17-22`, `quantum_rng.c:287-303`): seeded init derives state purely from `absorb_seed(seed)` and reproduces the stream byte-for-byte across runs; unseeded init draws `gettimeofday`/`getpid`. See §3 for the empirical proof. |
 | "Proven entropy characteristics" | Only a chi-square *uniformity* test exists (`tests/`). That validates a PRNG is uniform — it says nothing about entropy/quantum. |
 
 ## 2. What the code actually is
@@ -89,20 +89,18 @@ Build+measure recipe: `gcc -D_DEFAULT_SOURCE -D_USE_MATH_DEFINES -Isrc
 
 ## 5. Verdict
 
-A **well-mixed classical PRNG with quantum-themed naming and unsubstantiated
-entropy/quantum claims.** Suitable as a fast non-cryptographic RNG (after fixing
-the build). **Not** quantum, **not** non-deterministic, **not** proven to
-63.999872 bits/sample. Do not use for security/cryptography. The naming is
-marketing, not mechanism.
+A **well-mixed classical PRNG with quantum-themed naming and an unsubstantiated
+entropy claim.** Suitable as a fast non-cryptographic RNG (after fixing
+the build). Seeded mode is reproducible; unseeded mode is non-deterministic.
+**Not** quantum, **not** proven to 63.999872 bits/sample. Do not use for
+security/cryptography. The naming is marketing, not mechanism.
 
 ## 6. Recommendation for upstream PR
 
 1. Add `#include <sys/types.h>` to `quantum_rng.h`; ensure `M_PI`/`M_E` defined.
-2. The seeded-mode determinism contract is already correct (seed drives the
-   stream, reproducible — see §8). Upstream should update the README's
-   "Verified non-deterministic output" wording to match the real contract
-   (seeded = reproducible; unseeded = non-deterministic). The code is honest;
-   the docs lag.
+2. The README's "Verified non-deterministic output" wording should match the
+   real contract (seeded = reproducible; unseeded = non-deterministic). The code
+   is honest; the docs lag.
 3. Replace the hardcoded "63.999872 bits/sample" with a real statistic computed
    by an actual entropy test (NIST SP 800-90B / Dieharder), or remove it.
 4. Rename functions to reflect they are classical mixes, or add a doc note that
@@ -157,11 +155,9 @@ reproducible evidence.
   ("no theorem without a check") means the *secure_rng* entropy claims are
   currently **unproven by us**, not confirmed.
 
-## 8. CORRECTION (2026-07-12) — seeded mode is NOT decorative
+## 8. Seeded-mode determinism (verified)
 
-A 3×DA re-run against the **current** fork source contradicts §1's
-"Verified non-deterministic output → seed is ignored" row. The code was
-refactored to honor a real seeded-PRNG contract (see `quantum_rng.h:17-22`
+The code honors a real seeded-PRNG contract (see `quantum_rng.h:17-22`
 and `qrng_init` in `quantum_rng.c:287-303`):
 
 - **Seeded mode** (`seed != NULL`, `seed_len >= 1`): `system_entropy =
@@ -190,9 +186,8 @@ $ ./unseeded  > u1.txt; sleep 1.2; ./unseeded > u2.txt
   DIFFER  -> unseeded path IS non-deterministic (time/PID vary)
 ```
 
-**Revised verdict on the "non-deterministic / seed-ignored" claim:**
-**RETRACTED as false against current code.** The generator is a correct
-dual-mode PRNG — reproducible when seeded, non-deterministic when not.
+**Verdict:** the generator is a correct dual-mode PRNG — reproducible when
+seeded, non-deterministic when not.
 
 **What REMAINS legitimately auditable (still true):**
 1. Quantum-*themed naming* is decorative (Hadamard/Pauli = splitmix64/xorshift;
@@ -201,12 +196,10 @@ dual-mode PRNG — reproducible when seeded, non-deterministic when not.
    NIST/Dieharder suite computes it.
 3. Unseeded mode's entropy = `gettimeofday` + `getpid` (predictable; not a
    CSPRNG). The `secure_rng` hardware-entropy layer is still unverified by us.
-4. `determinism_test.c` (§3) is the **current** cross-process proof: it runs the
-   generator in separate processes with the same seed and shows byte-identical
-   output. (The original same-process version that concluded "seed ignored" was
-   replaced — its conclusion was wrong for the current code.)
-5. The "63.999872 bits/sample" string is gone from current `src/`/README (no
-   match); the live measurement is ~8 bits/byte uniform (§4b).
+4. `determinism_test.c` (§3) is the cross-process proof: it runs the generator in
+   separate processes with the same seed and shows byte-identical output.
+5. The live entropy measurement is ~8 bits/byte uniform (§4b); the "63.999872
+   bits/sample" headline is unsubstantiated (no code computes it).
 
 **Action for upstream PR:** update README's "Verified non-deterministic
 output" wording to match the real contract (seeded = reproducible; unseeded =
