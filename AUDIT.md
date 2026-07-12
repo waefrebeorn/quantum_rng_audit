@@ -12,39 +12,49 @@ of the core generator. No theorem without a check.
 | "Leverages quantum mechanical principles" | Pure classical PRNG. No quantum mechanics anywhere. "Qubits" are array indices (`QRNG_NUM_QUBITS=8`). |
 | "Quantum superposition / entanglement / decoherence" | Function names only. `quantum_noise` = `sin/cos/sqrt` of a double; `hadamard_gate`/`phase_gate` = `splitmix64`/`xorshift` bit-mixing. |
 | "High entropy output (63.999872 bits/sample)" | **Hardcoded string** in README/docs. No code computes it. No Dieharder/NIST suite present. |
-| "Verified non-deterministic output" | **False by construction.** Output = deterministic function of `(counter, runtime_entropy)`, where `runtime_entropy` = `gettimeofday + getpid + clock + rdtsc`. A true CSPRNG reproduces a stream from its seed; this one **ignores the seed** at init (mixes in wall-clock time even when a seed is supplied). |
+| "Verified non-deterministic output" | **RETRACTED (see §8).** The current code honors a real seeded-PRNG contract (`quantum_rng.h:17-22`, `quantum_rng.c:287-303`): seeded init derives state purely from `absorb_seed(seed)` and reproduces the stream byte-for-byte across runs; unseeded init draws `gettimeofday`/`getpid` and is non-deterministic. The earlier audit claim that "the seed is ignored" was true of an older revision and is **false against current code** (proven by re-running `audit/determinism_test.c` in separate processes). |
 | "Proven entropy characteristics" | Only a chi-square *uniformity* test exists (`tests/`). That validates a PRNG is uniform — it says nothing about entropy/quantum. |
 
 ## 2. What the code actually is
 
-A time-seeded, classical bit-mixer:
-- `get_system_entropy()` → `gettimeofday` ⊕ `getpid` ⊕ `clock` ⊕ `rdtsc`.
+A classical bit-mixer with two modes (see `quantum_rng.h:17-22`):
+- **Seeded mode** (`seed != NULL`): `qrng_init` sets `system_entropy =
+  absorb_seed(seed)` — a pure function of the seed (no time/PID mixed in). The
+  stream reproduces byte-for-byte across runs. This is a *correct* seeded PRNG.
+- **Unseeded mode** (`seed == NULL`): `get_system_entropy()` → `gettimeofday`
+  ⊕ `getpid` ⊕ `clock` ⊕ `rdtsc`, drawn once at init → non-deterministic stream.
 - `quantum_step()` → loops `splitmix64` + `hadamard_mix` (xorshift-style
   multiplies with magic constants `QRNG_PAULI_X/Y/Z`, `QRNG_HEISENBERG`, …)
-  over a counter + the time-derived entropy pool.
+  over a counter + the entropy pool.
 - Magic constants named after physical quantities (`QRNG_FINE_STRUCTURE`,
   `QRNG_PLANCK`, …) are just arbitrary 64-bit integers — they confer no
   physical property.
 
-The mixing is *competent PRNG design* (splitmix64 avalanches well). The problem
-is **honesty**: it is marketed as quantum/non-deterministic when it is a
-classical, time-seeded PRNG.
+The mixing is *competent PRNG design* (splitmix64 avalanches well). The remaining
+**honesty** problem is the quantum/non-deterministic *marketing* over a classical
+core — and the unseeded path's entropy is predictable (time + PID), not a CSPRNG.
 
 ## 3. Empirical check (this fork)
 
 `audit/determinism_test.c` compiles the core (with the missing `<sys/types.h>`
 and `M_PI`/`M_E` includes that the upstream build omits — see §4) and runs the
-generator twice with the **same explicit seed**. Result:
+generator **in separate processes** with the **same explicit seed**. Result
+(verified 2026-07-12):
 
 ```
-seed-identical runs produce IDENTICAL output: NO
+$ ./determinism_test        # PID 322903, seed 0xDE
+e7c0a27d50122f26  dd1c64894dbe1f88  a3b3d23982b7a3b4  33f04f0ba7fe4ff6 ...
+$ sleep 1.2; ./determinism_test   # PID 322912, +1.2s, SAME seed
+e7c0a27d50122f26  dd1c64894dbe1f88  a3b3d23982b7a3b4  33f04f0ba7fe4ff6 ...   (byte-identical)
+$ ./determinism_test 0x01   # different seed byte -> different stream
+b220d2648d88683d ...
 ```
 
-Because `qrng_init` folds in `gettimeofday` even with a seed, the seed is
-decorative; the stream is keyed by wall-clock time + PID. That is the opposite
-of "verified non-deterministic" — it is *fully deterministic given the init
-timestamp*, and the seed is ignored. A correct seeded generator would reproduce
-the stream. This is a concrete, reproducible defect in the claims.
+The same seed reproduces the stream across different PIDs and wall-clock times:
+the seed — not the clock — governs the output. **The seed is NOT decorative**
+(contrary to the audit's first pass; see §8). In unseeded mode the stream *is*
+non-deterministic. This is a correct dual-mode PRNG; the remaining defect is the
+quantum/non-deterministic *marketing*, not the determinism contract.
 
 ## 4. Build defects (real, blocking)
 
@@ -122,10 +132,15 @@ reproducible evidence.
   "quantum" word is **still marketing** over the same classical `quantum_rng.c`
   core — the new layer adds *real* hardware entropy (RDSEED/RDRAND/`/dev/random`)
   but no quantum process.
-- **Core audit verdict UNCHANGED.** Re-ran `audit/determinism_test.c` after the
-  merge: `same seed -> identical stream: YES (deterministic given seed)`. The
-  original `quantum_rng.c` is still a deterministic, time-seeded, seed-ignoring
-  PRNG. §1–§6 stand for that file.
+- **Core audit verdict CORRECTED (see §8).** Re-ran `audit/determinism_test.c`
+  (separate processes) after the merge: `same seed -> identical stream: YES
+  (reproducible across PID/time)`. The current `quantum_rng.c` is a **correct
+  dual-mode PRNG** — seeded mode is a pure function of `absorb_seed(seed)`
+  (reproducible), unseeded mode draws `gettimeofday`/`getpid` (non-deterministic).
+  The earlier "seed-ignoring, time-seeded" finding is RETRACTED. What remains
+  true for the core: the quantum/non-deterministic *marketing* is false, and the
+  unseeded entropy is predictable (time + PID), not a CSPRNG. §1 row updated
+  accordingly; §2/§3 rewritten.
 - **Updated net verdict:** `tsotchke/quantum_rng` is no longer "just a time-seeded
   PRNG." It is now a **layered RNG**: a classical-but-competent core
   (`quantum_rng.c`, the audit target, still falsely marketed as quantum) PLUS a

@@ -42,8 +42,10 @@ guard-define them).
 
 - `AUDIT.md` — full findings (claim-vs-reality table, empirical results,
   build defects, verdict, upstream-PR recommendations).
-- `audit/determinism_test.c` — reproducible proof that the seed is decorative
-  and the stream is time-keyed.
+- `audit/determinism_test.c` — reproducible proof that **the seed governs the
+  stream** (run in separate processes: same seed → byte-identical output across
+  PID/time). Corrected 2026-07-12; the earlier "seed is decorative" wording is
+  RETRACTED (see `AUDIT.md` §8).
 
 ## Conventions for agents
 
@@ -61,7 +63,11 @@ guard-define them).
 - The "63.999872 bits/sample" number is hardcoded marketing text — no code
   computes it; no NIST/Dieharder suite exists. The only test is chi-square
   *uniformity* (validates a PRNG is uniform, not that it has quantum entropy).
-- `qrng_init` ignores the supplied seed (mixes wall-clock time regardless). A
-  correct seeded generator would reproduce the stream from the seed.
+- `qrng_init` **honors the seed** in the current code (seeded mode = pure
+  function of `absorb_seed(seed)`, reproducible across runs; unseeded mode draws
+  `gettimeofday`/`getpid`). The older "seed is ignored" finding is RETRACTED —
+  see `AUDIT.md` §8. `audit/determinism_test.c` proves it (run in separate
+  processes).
 - Not suitable for cryptography/security despite "key exchange" examples — the
-  entropy is predictable (time + PID).
+  unseeded entropy is predictable (time + PID), and the `secure_rng` hardware
+  layer is still unverified by us.

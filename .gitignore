@@ -102,3 +102,10 @@ Thumbs.db
 
 # Historical/internal docs — kept locally, not published
 docs/archive/
+
+# Audit fork built evidence binaries (rebuilt via gcc, not committed)
+/audit/determinism_test
+/audit/det_crossproc
+/audit/ent
+/audit/probe
+/audit/unseeded
