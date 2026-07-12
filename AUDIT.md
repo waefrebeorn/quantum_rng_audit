@@ -98,3 +98,44 @@ marketing, not mechanism.
 
 This fork keeps the upstream code verbatim and adds `audit/` with the
 reproducible evidence.
+
+---
+
+## 7. Amendment (2026-07-12) — new `secure_rng` subsystem added upstream
+
+> On 2026-07-11 upstream pushed 9 commits (now in `origin/master`, merged into
+> this fork at `23154db`). The original audit (§1–§6, 2026-07-11) targeted the
+> **core** `src/quantum_rng/quantum_rng.c`. Upstream has since added a separate
+> `src/secure_rng/` + `src/entropy/` subsystem. Re-verified against the new code
+> so the verdict is not over-claimed.
+
+- **A real hardware-entropy layer now exists.** `src/entropy/hardware_entropy.c`
+  (24 KB) actually reads `RDSEED` / `RDRAND` (Intel CPU TRNG instructions) and
+  `/dev/random` (kernel pool), with health-test fallbacks. This is **genuine**
+  classical hardware entropy — NOT quantum, but real (CPU/`/dev/random` are
+  standard CSPRNG entropy sources). So the old line "the repo has no real entropy
+  source" is **now false for `secure_rng`**; it remains true for the original
+  `quantum_rng.c` core.
+- **`secure_rng` still wraps the core quantum_rng.** `secure_rng.h` `#include`s
+  `../quantum_rng/quantum_rng.h` and advertises "Quantum mixing for enhanced
+  randomness" / `SECURE_RNG_MODE_QUANTUM` / `VERIFIED` (Bell-test) modes. The
+  "quantum" word is **still marketing** over the same classical `quantum_rng.c`
+  core — the new layer adds *real* hardware entropy (RDSEED/RDRAND/`/dev/random`)
+  but no quantum process.
+- **Core audit verdict UNCHANGED.** Re-ran `audit/determinism_test.c` after the
+  merge: `same seed -> identical stream: YES (deterministic given seed)`. The
+  original `quantum_rng.c` is still a deterministic, time-seeded, seed-ignoring
+  PRNG. §1–§6 stand for that file.
+- **Updated net verdict:** `tsotchke/quantum_rng` is no longer "just a time-seeded
+  PRNG." It is now a **layered RNG**: a classical-but-competent core
+  (`quantum_rng.c`, the audit target, still falsely marketed as quantum) PLUS a
+  genuinely-real hardware-entropy collector (`secure_rng`/`entropy`) that mixes
+  in RDSEED/RDRAND/`/dev/random`. The *honesty gap* remains on the **core** file's
+  "quantum/non-deterministic/63.999872-bit" claims (§1, §4b); the *new* layer is
+  real hardware entropy but is rhetorically bundled with the same "quantum" label.
+- **Not yet independently benchmarked:** `secure_rng`'s health tests
+  (`tests/health_tests_test.c`, 848 lines) and Bell-test path were NOT executed
+  here (LLVM/build out of scope this pass). Treated as **unverified-but-plausible**
+  real entropy, pending a build+run of `secure_rng_test.c`. The audit's bar
+  ("no theorem without a check") means the *secure_rng* entropy claims are
+  currently **unproven by us**, not confirmed.
