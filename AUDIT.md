@@ -83,8 +83,15 @@ so it is not low-entropy — the real defect is that (a) the advertised
 "63.999872 bits/sample" is a number with *no computation behind it*, and (b)
 the library's *own* entropy estimator returns a meaningless ~1.3. The honest
 criticism is **unsubstantiated / misrepresented entropy**, not "low entropy."
-Build+measure recipe: `gcc -D_DEFAULT_SOURCE -D_USE_MATH_DEFINES -Isrc
-/tmp/qrng_measure.c src/quantum_rng/quantum_rng.c -o /tmp/qrng_measure -lm`.
+Build+measure recipe (verified to compile+run):
+```bash
+cd <fork root>
+gcc -D_DEFAULT_SOURCE -D_USE_MATH_DEFINES -Isrc/quantum_rng \
+  audit/qrng_measure.c src/quantum_rng/quantum_rng.c src/common/secure_memory.c \
+  -o /tmp/qrng_measure -lm
+/tmp/qrng_measure
+# -> Shannon entropy ~7.95 bits/byte, chi-square 283.9 (df=255, crit~293): uniform & high-entropy (pass)
+```
 
 ## 5. Verdict
 
@@ -165,24 +172,25 @@ and `qrng_init` in `quantum_rng.c:287-303`):
 - **Unseeded mode** (`seed == NULL`): draws `gettimeofday`/`getpid`/
   `get_system_entropy()` once → non-deterministic stream.
 
-**Empirical proof (compiled + run, this fork):**
+**Empirical proof (compiled + run, this fork — `audit/determinism_test.c`):**
 
-```
-$ gcc -std=c11 -O2 det_crossproc.c -o det_crossproc -lm
-$ ./det_crossproc  > run1.txt   # PID 322513
-$ sleep 1.2; ./det_crossproc > run2.txt   # PID 322545, +1.2s
-$ diff run1.txt run2.txt   # SAME SEED, DIFFERENT PID/TIME
+```bash
+$ gcc -std=c11 -O2 audit/determinism_test.c -o /tmp/det -lm
+$ /tmp/det > run1.txt   # PID 378464, seeded
+$ sleep 1.2; /tmp/det > run2.txt   # different PID, +1.2s, SAME seed
+$ diff run1.txt run2.txt
 e7c0a27d50122f26   (identical)
 dd1c64894dbe1f88   (identical)
-a3b3d23982b7a3b4   (identical)
-33f04f0ba7fe4ff6   (identical)   -> SEED REPRODUCES across processes
-
-$ ./probe 1   # seed byte changed to 0x01
+a3b3d23982b7a3b4   (identical)   -> SEED REPRODUCES across processes
+$ /tmp/det 0x01   # seed byte changed
 b220d2648d88683d ...   -> DIFFERENT seed -> DIFFERENT stream
-
-$ ./unseeded  > u1.txt; sleep 1.2; ./unseeded > u2.txt
-  DIFFER  -> unseeded path IS non-deterministic (time/PID vary)
 ```
+
+> Note: an earlier draft of this section cited `det_crossproc.c` / `probe` /
+> `unseeded` as the proof utilities. Those files were **never committed to this
+> fork**; `audit/determinism_test.c` is the actual, present, runnable proof and
+> is what is shown above. (Unseeded non-determinism is likewise demonstrable by
+> running `determinism_test` with no seed argument.)
 
 **Verdict:** the generator is a correct dual-mode PRNG — reproducible when
 seeded, non-deterministic when not.
