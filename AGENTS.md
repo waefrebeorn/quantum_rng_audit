@@ -7,9 +7,11 @@ Fork of `tsotchke/quantum_rng` for **devil's-advocate auditing**. Upstream:
 
 Independently verify (or refute) upstream's claims — "quantum-inspired",
 "verified non-deterministic", "63.999872 bits/sample entropy". The audit
-conclusion (see `AUDIT.md`): it is a **classical, time-seeded PRNG** with
-quantum-themed naming and unsubstantiated entropy claims. Keep upstream code
-**verbatim**; add evidence under `audit/`.
+conclusion (see `AUDIT.md`): it is a **classical dual-mode PRNG** — a pure
+function of the seed when seeded (reproducible across PID/time), non-deterministic
+when unseeded — with quantum-themed naming and (now-fixed) entropy claims.
+Upstream code is audited here; verified defects are fixed in place under
+`src/` and cross-checked by tools under `audit/`.
 
 ## Repo reality
 

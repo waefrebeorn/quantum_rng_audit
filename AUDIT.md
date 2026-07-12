@@ -11,7 +11,7 @@ of the core generator. No theorem without a check.
 |---|---|
 | "Leverages quantum mechanical principles" | Pure classical PRNG. No quantum mechanics anywhere. "Qubits" are array indices (`QRNG_NUM_QUBITS=8`). |
 | "Quantum superposition / entanglement / decoherence" | Function names only. `quantum_noise` = `sin/cos/sqrt` of a double; `hadamard_gate`/`phase_gate` = `splitmix64`/`xorshift` bit-mixing. |
-| "High entropy output (63.999872 bits/sample)" | **Hardcoded string** in README/docs. No code computes it. No Dieharder/NIST suite present. |
+| "High entropy output (63.999872 bits/sample)" | **Retired claim.** The number was hardcoded marketing text — no code computed it, no Dieharder/NIST suite existed. Replaced 2026-07-12 by a real measured estimator: `qrng_get_entropy_estimate()` now returns the Shannon entropy of the actual output stream (≈ 7.9998 bits/byte). See `audit/qrng_measure.c`. |
 | "Verified non-deterministic output" | Seeded mode is a reproducible function of the seed; unseeded mode is non-deterministic. The code honors a real seeded-PRNG contract (`quantum_rng.h:17-22`, `quantum_rng.c:287-303`): seeded init derives state purely from `absorb_seed(seed)` and reproduces the stream byte-for-byte across runs; unseeded init draws `gettimeofday`/`getpid`. See §3 for the empirical proof. |
 | "Proven entropy characteristics" | Only a chi-square *uniformity* test exists (`tests/`). That validates a PRNG is uniform — it says nothing about entropy/quantum. |
 

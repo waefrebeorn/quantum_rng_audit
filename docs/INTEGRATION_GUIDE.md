@@ -17,7 +17,7 @@ We will integrate the proven quantum engine with the existing RNG infrastructure
 
 ### ✅ Existing RNG (STABLE)
 - **Performance:** 4.82M ops/sec, 178 MB/s
-- **Entropy:** 63.999872 bits/sample
+- **Entropy:** 7.9998 bits/byte (measured Shannon entropy of output stream)
 - **API:** Well-tested, production-ready
 - **Examples:** Crypto, finance, games, etc.
 
