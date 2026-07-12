@@ -139,3 +139,56 @@ reproducible evidence.
   real entropy, pending a build+run of `secure_rng_test.c`. The audit's bar
   ("no theorem without a check") means the *secure_rng* entropy claims are
   currently **unproven by us**, not confirmed.
+
+## 8. CORRECTION (2026-07-12) — seeded mode is NOT decorative
+
+A 3×DA re-run against the **current** fork source contradicts §1's
+"Verified non-deterministic output → seed is ignored" row. The code was
+refactored to honor a real seeded-PRNG contract (see `quantum_rng.h:17-22`
+and `qrng_init` in `quantum_rng.c:287-303`):
+
+- **Seeded mode** (`seed != NULL`, `seed_len >= 1`): `system_entropy =
+  absorb_seed(seed)` — derived *purely* from the seed. `init_time`, `pid`,
+  and `runtime_entropy` are left zero (from `calloc`). The stream is a
+  **pure, reproducible function of the seed**. The seed is NOT decorative.
+- **Unseeded mode** (`seed == NULL`): draws `gettimeofday`/`getpid`/
+  `get_system_entropy()` once → non-deterministic stream.
+
+**Empirical proof (compiled + run, this fork):**
+
+```
+$ gcc -std=c11 -O2 det_crossproc.c -o det_crossproc -lm
+$ ./det_crossproc  > run1.txt   # PID 322513
+$ sleep 1.2; ./det_crossproc > run2.txt   # PID 322545, +1.2s
+$ diff run1.txt run2.txt   # SAME SEED, DIFFERENT PID/TIME
+e7c0a27d50122f26   (identical)
+dd1c64894dbe1f88   (identical)
+a3b3d23982b7a3b4   (identical)
+33f04f0ba7fe4ff6   (identical)   -> SEED REPRODUCES across processes
+
+$ ./probe 1   # seed byte changed to 0x01
+b220d2648d88683d ...   -> DIFFERENT seed -> DIFFERENT stream
+
+$ ./unseeded  > u1.txt; sleep 1.2; ./unseeded > u2.txt
+  DIFFER  -> unseeded path IS non-deterministic (time/PID vary)
+```
+
+**Revised verdict on the "non-deterministic / seed-ignored" claim:**
+**RETRACTED as false against current code.** The generator is a correct
+dual-mode PRNG — reproducible when seeded, non-deterministic when not.
+
+**What REMAINS legitimately auditable (still true):**
+1. Quantum-*themed naming* is decorative (Hadamard/Pauli = splitmix64/xorshift;
+   "qubits" = array indices). No quantum mechanics.
+2. "63.999872 bits/sample entropy" is hardcoded marketing text; no
+   NIST/Dieharder suite computes it.
+3. Unseeded mode's entropy = `gettimeofday` + `getpid` (predictable; not a
+   CSPRNG). The `secure_rng` hardware-entropy layer is still unverified by us.
+4. `determinism_test.c` (§3) is **stale**: it inits both contexts in the same
+   process and checks `a` vs `b`, which can't distinguish seeded-determinism
+   from time-variation. Its "NO (seed ignored)" conclusion is wrong for the
+   current code. Replace with the cross-process `det_crossproc.c` above.
+
+**Action for upstream PR:** update README's "Verified non-deterministic
+output" wording to match the real contract (seeded = reproducible; unseeded =
+non-deterministic). The code is now honest; the docs lag.
