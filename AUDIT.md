@@ -73,9 +73,9 @@ Built the core lib (adding the missing includes) and generated 1,048,576 bytes:
 
 | Quantity | Measured | Note |
 |----------|----------|------|
-| Byte Shannon entropy | **7.999847 bits/byte** (max 8.0) | output is essentially uniform |
-| Chi-square uniformity | **222.6** (df=255, crit ≈ 293 @ p=0.05) | passes uniformity |
-| Library's own `qrng_get_entropy_estimate()` | **1.26 bits/byte** | internally inconsistent — its math sums `-log2(raw_pool_byte+1e-10)` over 16 bytes + a bogus runtime term, divided by 17; not a real entropy estimate |
+| Byte Shannon entropy | **7.999830 bits/byte** (max 8.0) | output is essentially uniform |
+| Chi-square uniformity | **247.3** (df=255, crit ≈ 293 @ p=0.05) | passes uniformity |
+| Library's own `qrng_get_entropy_estimate()` | **~1.30 bits/byte** | internally inconsistent — its math sums `-log2(raw_pool_byte+1e-10)` over 16 bytes + a bogus runtime term, divided by 17; not a real entropy estimate (see `quantum_rng.c:491`) |
 | README claim "63.999872 bits/sample" | **no code computes it** | hardcoded string; no NIST/Dieharder anywhere |
 
 **Corrected framing (do NOT repeat the old "fabricated low entropy" line):**
@@ -98,9 +98,11 @@ marketing, not mechanism.
 ## 6. Recommendation for upstream PR
 
 1. Add `#include <sys/types.h>` to `quantum_rng.h`; ensure `M_PI`/`M_E` defined.
-2. Either (a) make the seed actually drive the stream (deterministic given seed,
-   for reproducibility/testability), or (b) drop the "non-deterministic/quantum"
-   claims and call it what it is: a time-seeded chaotic PRNG.
+2. The seeded-mode determinism contract is already correct (seed drives the
+   stream, reproducible — see §8). Upstream should update the README's
+   "Verified non-deterministic output" wording to match the real contract
+   (seeded = reproducible; unseeded = non-deterministic). The code is honest;
+   the docs lag.
 3. Replace the hardcoded "63.999872 bits/sample" with a real statistic computed
    by an actual entropy test (NIST SP 800-90B / Dieharder), or remove it.
 4. Rename functions to reflect they are classical mixes, or add a doc note that
@@ -199,10 +201,12 @@ dual-mode PRNG — reproducible when seeded, non-deterministic when not.
    NIST/Dieharder suite computes it.
 3. Unseeded mode's entropy = `gettimeofday` + `getpid` (predictable; not a
    CSPRNG). The `secure_rng` hardware-entropy layer is still unverified by us.
-4. `determinism_test.c` (§3) is **stale**: it inits both contexts in the same
-   process and checks `a` vs `b`, which can't distinguish seeded-determinism
-   from time-variation. Its "NO (seed ignored)" conclusion is wrong for the
-   current code. Replace with the cross-process `det_crossproc.c` above.
+4. `determinism_test.c` (§3) is the **current** cross-process proof: it runs the
+   generator in separate processes with the same seed and shows byte-identical
+   output. (The original same-process version that concluded "seed ignored" was
+   replaced — its conclusion was wrong for the current code.)
+5. The "63.999872 bits/sample" string is gone from current `src/`/README (no
+   match); the live measurement is ~8 bits/byte uniform (§4b).
 
 **Action for upstream PR:** update README's "Verified non-deterministic
 output" wording to match the real contract (seeded = reproducible; unseeded =
